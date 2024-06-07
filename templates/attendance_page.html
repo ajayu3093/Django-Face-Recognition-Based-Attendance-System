@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Attendance</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Times New Roman', sans-serif;
+            background: url('your_background_image_url') no-repeat center center/cover;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2rem;
+            color: #333;
+            font-weight: bold;
+        }
+        .glass-login-form {
+            background: rgba(25, 255, 255, 0.2);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        .glass-login-form button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(45deg, #8686e3, #3b3494);
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+        .glass-login-form button:hover {
+            background: linear-gradient(45deg, #5d5e5d, #a4a4a7);
+        }
+        video {
+            margin: 20px 0;
+            max-width: 100%;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+        }
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+            .glass-login-form button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Register Attendance</h1>
+    <div class="glass-login-form">
+        <button id="startButton">Start Attendance</button>
+        <button id="captureButton" style="display: none;">Capture</button>
+        <video id="video" autoplay></video>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1" role="dialog" aria-labelledby="successModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="successModalLabel">Success</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    Successfully taken your attendance.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Already Attended Modal -->
+    <div class="modal fade" id="attendedModal" tabindex="-1" role="dialog" aria-labelledby="attendedModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="attendedModalLabel">Attendance Already Recorded</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    You have already taken your attendance.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    <script>
+        const video = document.getElementById('video');
+
+        document.getElementById('startButton').addEventListener('click', function() {
+            // Request access to the camera
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    document.getElementById('captureButton').style.display = 'block';
+                })
+                .catch(err => console.error('Error accessing camera: ', err));
+        });
+
+        document.getElementById('captureButton').addEventListener('click', function() {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/jpeg').replace(/^data:image\/jpeg;base64,/, '');
+
+            const name = prompt('Enter your name:');
+            const id = prompt('Enter your ID:');
+            const datetime = new Date().toISOString();
+
+            $.ajax({
+                url: "{% url 'track_images' %}",  // Replace with the correct URL
+                method: 'POST',
+                data: {
+                    image: imageData,
+                    name: name,
+                    id: id,
+                    datetime: datetime,
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#successModal').modal('show');  // Show the success modal
+                    } else if (response.status === 'attended') {
+                        $('#attendedModal').modal('show');  // Show the attended modal
+                    } else {
+                        console.log('Failed to record attendance');
+                    }
+                },
+                error: function(response) {
+                    console.log('Error: ', response);
+                }
+            });
+
+            // Stop the camera
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+            video.srcObject = null;
+            document.getElementById('captureButton').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
